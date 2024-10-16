@@ -21,12 +21,18 @@ This project automates the process of extracting job application information fro
    cd job-application-processor
    ```
 
-2. Install required packages:
+2. Create a virtual environment (optional but recommended):
+   ```
+   python3 -m venv env
+   source env/bin/activate  # On Windows, use `env\Scripts\activate`
+   ```
+
+3. Install required packages:
    ```
    pip install -r requirements.txt
    ```
 
-3. Set up your OpenAI API key as an environment variable:
+4. Set up your OpenAI API key as an environment variable:
    ```
    export OPENAI_API_KEY='your-api-key-here'
    ```
@@ -35,6 +41,11 @@ This project automates the process of extracting job application information fro
 1. Start the folder monitor:
    ```
    python folder_monitor.py
+   ```
+
+   Alternatively, use the `jobs.sh` script to run the monitor in a virtual environment:
+   ```
+   ./jobs.sh
    ```
 
 2. Place job application screenshots in the monitored folder (default: `/Users/luke/Desktop/job-screenshots`)
@@ -51,6 +62,16 @@ This project automates the process of extracting job application information fro
 - `log.csv`: Stores extracted job application data
 - `folder_monitor.log`: Logs folder monitoring events
 - `job_application_processor.log`: Logs image processing events
+- `jobs.sh`: Bash script to run the folder monitor in a virtual environment
+
+## jobs.sh Script
+The `jobs.sh` script is a convenience wrapper that:
+1. Checks for the existence of the virtual environment and the main Python script
+2. Activates the virtual environment
+3. Runs the `folder_monitor.py` script
+4. Deactivates the virtual environment when the script exits
+
+This script ensures that the folder monitor runs in the correct environment with all necessary dependencies.
 
 ## Troubleshooting
 - Ensure your OpenAI API key is correctly set and has sufficient quota
