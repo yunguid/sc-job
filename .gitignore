@@ -1,1 +1,4 @@
 env/
+folder_monitor.log
+job_application_processor.log
+log.csv
