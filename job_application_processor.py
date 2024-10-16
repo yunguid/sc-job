@@ -13,16 +13,17 @@ Usage:
 import argparse
 import logging
 import os
+from openai import OpenAI
 import sys
 import json
 import base64
-import openai
 import datetime
-from dataclasses import asdict
 
 # Set your OpenAI API key
 # Make sure you have set the environment variable OPENAI_API_KEY
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
 
 def process_screenshot(image_path):
     """
@@ -31,71 +32,62 @@ def process_screenshot(image_path):
     """
     logging.info(f"Processing screenshot: {image_path}")
 
-    # Read and encode the image in base64
     try:
         with open(image_path, "rb") as image_file:
-            base64_image = base64.b64encode(image_file.read()).decode('utf-8')
+            img_b64_str = base64.b64encode(image_file.read()).decode('utf-8')
     except Exception as e:
         logging.error(f"Error reading image file: {e}")
         raise
 
-    # Craft the prompt
-    prompt = "Extract the following information from the job posting image:\n"
-    prompt += "- Job Title\n"
-    prompt += "- Company Name\n"
-    prompt += "- Location\n"
-    prompt += "- Salary Range\n"
-    prompt += "- Required Skills\n"
-    prompt += "Provide the information in JSON format with the above keys. If any information is missing, leave the value empty."
+    prompt = (
+        "Extract the following information from the job posting image provided:\n"
+        "- Job Title\n"
+        "- Company Name\n"
+        "- Location\n"
+        "- Salary Range\n"
+        "Provide the information in JSON format with the above keys. If any information is missing, leave the value empty."
+    )
 
-    # Create the message content
-    message_content = [
-        {"type": "text", "text": prompt},
-        {
-            "type": "image",
-            "image": {
-                "data": f"data:image/jpeg;base64,{base64_image}"
-            }
-        }
-    ]
+    img_type = "image/png"  # Adjust if needed for different image types
 
-    # Send the request to the OpenAI API
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4-vision",
+        response = client.chat.completions.create(
+            model="gpt-4o",
             messages=[
                 {
                     "role": "user",
-                    "content": message_content
+                    "content": [
+                        {"type": "text", "text": prompt},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": f"data:{img_type};base64,{img_b64_str}"},
+                        },
+                    ],
                 }
             ],
-            max_tokens=500,
-            temperature=0.2  # Lower temperature for more focused responses
+            max_tokens=500
         )
     except Exception as e:
         logging.error(f"Error calling OpenAI API: {e}")
         raise
 
-    # Parse the response
     try:
-        # The assistant's reply is in response.choices[0].message.content
         assistant_reply = response.choices[0].message.content.strip()
         logging.info(f"Assistant reply: {assistant_reply}")
 
-        # Extract JSON from the assistant's reply
-        start_index = assistant_reply.find('{')
-        end_index = assistant_reply.rfind('}') + 1
-        json_str = assistant_reply[start_index:end_index]
+        try:
+            extracted_data = json.loads(assistant_reply)
+        except json.JSONDecodeError:
+            start_index = assistant_reply.find('{')
+            end_index = assistant_reply.rfind('}') + 1
+            json_str = assistant_reply[start_index:end_index]
+            extracted_data = json.loads(json_str)
 
-        extracted_data = json.loads(json_str)
-
-        # Ensure all required keys are present
-        required_keys = ["Job Title", "Company Name", "Location", "Salary Range", "Required Skills"]
+        required_keys = ["Job Title", "Company Name", "Location", "Salary Range"]
         for key in required_keys:
             if key not in extracted_data:
                 extracted_data[key] = ""
 
-        # Add date_applied as the current date and time
         extracted_data["Date Applied"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
         return extracted_data
@@ -114,7 +106,7 @@ def update_csv(data, csv_path):
     file_exists = os.path.isfile(csv_path)
 
     # Define the fieldnames
-    fieldnames = ["Job Title", "Company Name", "Location", "Salary Range", "Required Skills", "Date Applied"]
+    fieldnames = ["Job Title", "Company Name", "Location", "Salary Range", "Date Applied"]
 
     try:
         with open(csv_path, mode='a', newline='', encoding='utf-8') as csvfile:
@@ -161,7 +153,7 @@ if __name__ == '__main__':
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('/Users/luke/cursor-projs/sc-job/sc-job/job_application_processor.log'),
+            logging.FileHandler('/Users/luke/cursor-projs/screenshot-job/job_application_processor.log'),
             logging.StreamHandler(sys.stdout)
         ]
     )

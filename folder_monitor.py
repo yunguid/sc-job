@@ -13,10 +13,13 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('/Users/luke/cursor-projs/sc-job/sc-job/folder_monitor.log'),
+        logging.FileHandler('/Users/luke/cursor-projs/screenshot-job/folder_monitor.log'),
         logging.StreamHandler(sys.stdout)
     ]
 )
+
+# Add this set to keep track of processed files
+processed_files = set()
 
 class NewFileHandler(FileSystemEventHandler):
     def __init__(self, processing_script, output_csv):
@@ -26,43 +29,29 @@ class NewFileHandler(FileSystemEventHandler):
     def on_created(self, event):
         # Check if the new file is a file (not a directory)
         if not event.is_directory:
-            filepath = event.src_path
-            filename = os.path.basename(filepath)
-
-            # Ignore temporary or hidden files
-            if filename.startswith('.'):
-                return
-
-            logging.info(f"New file detected: {filename}")
-
-            # Wait until the file is fully copied
-            while not self.is_file_ready(filepath):
-                time.sleep(0.1)
-
-            # Check if the file is a PNG or JPEG image
-            if filename.lower().endswith(('.png', '.jpg', '.jpeg')):
-                # Call the processing script
+            file_path = event.src_path
+            file_name = os.path.basename(file_path)
+            
+            # Check if the file has already been processed
+            if file_name not in processed_files:
+                logging.info(f"New file detected: {file_name}")
+                logging.info(f"Processing file: {file_name}")
+                
                 try:
-                    logging.info(f"Processing file: {filename}")
                     subprocess.run([
                         '/usr/bin/env', 'python3',
                         self.processing_script,
-                        '--input', filepath,
+                        '--input', file_path,
                         '--output', self.output_csv
                     ], check=True)
-                    logging.info(f"File processed successfully: {filename}")
+                    logging.info(f"File processed successfully: {file_name}")
+                    
+                    # Add the file to the set of processed files
+                    processed_files.add(file_name)
                 except subprocess.CalledProcessError as e:
-                    logging.error(f"Error processing file {filename}: {e}")
+                    logging.error(f"Error processing file {file_name}: {e}")
             else:
-                logging.info(f"Ignoring non-image file: {filename}")
-
-    def is_file_ready(self, filepath):
-        # Check if a file is ready to be processed (finished copying)
-        try:
-            with open(filepath, 'rb'):
-                return True
-        except IOError:
-            return False
+                logging.info(f"File already processed, skipping: {file_name}")
 
 def monitor_folder(folder_to_watch, processing_script, output_csv):
     event_handler = NewFileHandler(processing_script, output_csv)
@@ -85,8 +74,8 @@ if __name__ == "__main__":
     folder_to_watch = '/Users/luke/Desktop/job-screenshots'
 
     # Set the path to your processing script and output CSV
-    processing_script = '/Users/luke/cursor-projs/sc-job/sc-job/job_application_processor.py'
-    output_csv = '/Users/luke/cursor-projs/sc-job/sc-job/log.csv'
+    processing_script = '/Users/luke/cursor-projs/screenshot-job/job_application_processor.py'
+    output_csv = '/Users/luke/cursor-projs/screenshot-job/log.csv'
 
     # Ensure the folder exists
     if not os.path.isdir(folder_to_watch):
